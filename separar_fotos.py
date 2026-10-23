@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Separa fotos por cámara y fecha de captura usando los metadatos EXIF.
 
-Copia (nunca mueve) las fotos que coinciden con la cámara y el rango de fechas
-a una carpeta de destino, ordenadas por año o por año/mes, y escribe un reporte
-CSV o JSON con lo que hizo con cada archivo.
+Copia (nunca mueve) las fotos que coinciden con una o varias cámaras y un rango
+ de fechas a una carpeta de destino, ordenadas por año o por año/mes, y escribe
+ un reporte CSV o JSON con lo que hizo con cada archivo.
 
 Requiere ExifTool instalado (https://exiftool.org). No usa librerías externas.
 """
@@ -44,6 +44,7 @@ class Registro:
 
 # --------------------------------------------------------------------------- Progreso
 
+
 class Progreso:
     """Barra de progreso en la terminal, sin dependencias. Solo se dibuja si la salida
     es una terminal (así no ensucia logs ni pruebas)."""
@@ -72,8 +73,10 @@ class Progreso:
         lleno = int(30 * fraccion)
         transcurrido = ahora - self._t0
         faltante = transcurrido / fraccion - transcurrido if fraccion else 0
-        sys.stderr.write(f"\r{self.etiqueta} [{'█' * lleno}{'░' * (30 - lleno)}] "
-                         f"{self.hecho}/{self.total} {fraccion:6.1%}  faltan {self._tiempo(faltante)}   ")
+        sys.stderr.write(
+            f"\r{self.etiqueta} [{'█' * lleno}{'░' * (30 - lleno)}] "
+            f"{self.hecho}/{self.total} {fraccion:6.1%}  faltan {self._tiempo(faltante)}   "
+        )
         sys.stderr.flush()
 
     def cerrar(self) -> None:
@@ -83,6 +86,7 @@ class Progreso:
 
 
 # --------------------------------------------------------------------------- ExifTool
+
 
 def verificar_exiftool() -> None:
     try:
@@ -94,8 +98,17 @@ def verificar_exiftool() -> None:
 def _leer_lote(rutas: list[Path]) -> dict[str, dict]:
     """Lee los metadatos de un lote de archivos con una sola llamada a ExifTool."""
     cmd = [
-        "exiftool", "-json", "-Make", "-Model", "-DateTimeOriginal", "-CreateDate",
-        "-ignoreMinorErrors", "-charset", "filename=utf8", "-@", "-",
+        "exiftool",
+        "-json",
+        "-Make",
+        "-Model",
+        "-DateTimeOriginal",
+        "-CreateDate",
+        "-ignoreMinorErrors",
+        "-charset",
+        "filename=utf8",
+        "-@",
+        "-",
     ]
     entrada = "\n".join(str(r) for r in rutas)
     res = subprocess.run(cmd, input=entrada, capture_output=True, text=True, encoding="utf-8")
@@ -106,7 +119,7 @@ def _leer_lote(rutas: list[Path]) -> dict[str, dict]:
 
 def leer_metadatos(archivos: list[Path], hilos: int, barra: bool = False) -> dict[Path, dict | None]:
     """Devuelve {archivo: metadatos}; None si no se pudo leer ese archivo."""
-    lotes = [archivos[i:i + TAMANO_LOTE] for i in range(0, len(archivos), TAMANO_LOTE)]
+    lotes = [archivos[i : i + TAMANO_LOTE] for i in range(0, len(archivos), TAMANO_LOTE)]
 
     def procesar(lote: list[Path]) -> dict[Path, dict | None]:
         try:
@@ -132,6 +145,7 @@ def leer_metadatos(archivos: list[Path], hilos: int, barra: bool = False) -> dic
 
 
 # --------------------------------------------------------------------------- Planeación
+
 
 def parsear_fecha(valor) -> datetime | None:
     if not valor:
@@ -161,6 +175,9 @@ def _carpeta(destino: Path, fecha: datetime, estructura: str) -> Path:
         return destino / f"{fecha.year}"
     if estructura == "anio-mes":
         return destino / f"{fecha.year}" / f"{fecha.month:02d}"
+    if estructura == "anio-semana":
+        iso_year, iso_week, _ = fecha.isocalendar()
+        return destino / str(iso_year) / f"semana-{iso_week:02d}"
     return destino
 
 
@@ -176,18 +193,65 @@ def _clave_orden(archivo: Path, metadatos: dict, orden: str):
     return (fecha, str(archivo))
 
 
-def planear(archivos: Iterable[Path], metadatos: dict, destino: Path, modelo: str | None,
-            desde: date | None, hasta: date | None, estructura: str,
-            orden: str = "nombre", sobrescribir: bool = False) -> list[Registro]:
-    """Decide qué pasa con cada archivo. Se ejecuta en un solo hilo: así los nombres
-    repetidos reciben un sufijo único (_A1, _A2...) sin riesgo de sobrescribir dentro de
-    una misma corrida. Con orden="reciente" va del año más reciente al más antiguo.
-    Con sobrescribir=True, un archivo que ya existe en el destino se reemplaza (nunca se
-    toca el origen)."""
+def normalizar_modelos(modelos: Iterable[str] | str | None) -> list[str]:
+    """Acepta un string, una lista o una secuencia con varios modelos."""
+    if modelos is None:
+        return []
+    if isinstance(modelos, str):
+        items = [modelos]
+    else:
+        items = list(modelos)
+    resultado: list[str] = []
+    for item in items:
+        for parte in str(item).split(","):
+            valor = parte.strip()
+            if valor:
+                resultado.append(valor)
+    return resultado
+
+
+def coincide_con_modelo(camara: str, modelos: list[str]) -> bool:
+    if not modelos:
+        return True
+    texto = camara.lower()
+    return any(modelo.lower() in texto for modelo in modelos)
+
+
+def inventario_camaras(origen: Path, hilos: int = 4, barra: bool = False) -> list[tuple[str, int]]:
+    """Devuelve (camera_name, cantidad) ordenado por número de fotos."""
+    archivos = escanear(origen)
+    metadatos = leer_metadatos(archivos, hilos, barra)
+    conteo: dict[str, int] = {}
+    for archivo in archivos:
+        meta = metadatos.get(archivo)
+        if meta is None:
+            continue
+        camara, _, _ = describir(archivo, meta)
+        if camara:
+            conteo[camara] = conteo.get(camara, 0) + 1
+    return sorted(conteo.items(), key=lambda elem: (-elem[1], elem[0]))
+
+
+def planear(
+    archivos: Iterable[Path],
+    metadatos: dict,
+    destino: Path,
+    modelos: list[str] | None,
+    desde: date | None,
+    hasta: date | None,
+    estructura: str,
+    orden: str = "nombre",
+    sobrescribir: bool = False,
+) -> list[Registro]:
+    """Decide qué pasa con cada archivo.
+
+    Si modelos está informado, solo acepta archivos cuyo 'Make Model' contenga
+    cualquiera de esos textos. Esto permite seleccionar varias cámaras a la vez.
+    """
     reservados: set[Path] = set()
     registros: list[Registro] = []
-    lista = sorted(archivos, key=lambda a: _clave_orden(a, metadatos, orden),
-                   reverse=(orden == "reciente"))
+    lista = sorted(archivos, key=lambda a: _clave_orden(a, metadatos, orden), reverse=(orden == "reciente"))
+    modelos_norm = normalizar_modelos(modelos)
     for archivo in lista:
         reg = Registro(archivo_origen=str(archivo))
         registros.append(reg)
@@ -198,7 +262,7 @@ def planear(archivos: Iterable[Path], metadatos: dict, destino: Path, modelo: st
         camara, fecha, fuente = describir(archivo, meta)
         reg.camara, reg.fecha, reg.fuente_fecha = camara, fecha.isoformat(sep=" "), fuente
 
-        if modelo and modelo.lower() not in camara.lower():
+        if not coincide_con_modelo(camara, modelos_norm):
             reg.estado, reg.mensaje = "omitido_camara", f"cámara distinta o ausente ({camara or 'sin dato'})"
             continue
         if (desde and fecha.date() < desde) or (hasta and fecha.date() > hasta):
@@ -223,6 +287,7 @@ def planear(archivos: Iterable[Path], metadatos: dict, destino: Path, modelo: st
 
 
 # --------------------------------------------------------------------------- Ejecución
+
 
 def _copiar(reg: Registro) -> None:
     try:
@@ -250,8 +315,10 @@ def ejecutar(registros: list[Registro], dry_run: bool, hilos: int, barra: bool =
 
 def escribir_reporte(registros: list[Registro], ruta: Path, formato: str, config: dict) -> None:
     if formato == "json":
-        ruta.write_text(json.dumps({"config": config, "registros": [asdict(r) for r in registros]},
-                                   indent=2, ensure_ascii=False), encoding="utf-8")
+        ruta.write_text(
+            json.dumps({"config": config, "registros": [asdict(r) for r in registros]}, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
     else:
         with ruta.open("w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=COLUMNAS)
@@ -261,46 +328,95 @@ def escribir_reporte(registros: list[Registro], ruta: Path, formato: str, config
 
 def escanear(origen: Path) -> list[Path]:
     # Se ignoran los archivos "._*" que macOS crea en discos externos.
-    return [p for p in origen.rglob("*")
-            if p.is_file() and p.suffix.lower() in EXTENSIONES and not p.name.startswith("._")]
+    return [
+        p
+        for p in origen.rglob("*")
+        if p.is_file() and p.suffix.lower() in EXTENSIONES and not p.name.startswith("._")
+    ]
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Separa fotos por cámara y fecha EXIF (copia, no mueve).")
-    p.add_argument("--origen", required=True, type=Path, help="carpeta con las fotos (se busca en subcarpetas)")
-    p.add_argument("--destino", required=True, type=Path, help="carpeta donde se copian las fotos que coinciden")
-    p.add_argument("--modelo", help='texto a buscar en "Make Model", p. ej. "DMC-LZ7"; sin él se aceptan todas las cámaras')
+    p.add_argument("--origen", type=Path, help="carpeta con las fotos (se busca en subcarpetas)")
+    p.add_argument("--destino", type=Path, help="carpeta donde se copian las fotos que coinciden")
+    p.add_argument(
+        "--modelo",
+        dest="modelos",
+        action="append",
+        default=[],
+        help='texto a buscar en "Make Model", p. ej. "DMC-LZ7"; se puede repetir o separar por comas',
+    )
     p.add_argument("--desde", type=date.fromisoformat, help="fecha mínima AAAA-MM-DD")
     p.add_argument("--hasta", type=date.fromisoformat, help="fecha máxima AAAA-MM-DD")
-    p.add_argument("--estructura", choices=["plano", "anio", "anio-mes"], default="anio")
+    p.add_argument(
+        "--estructura",
+        choices=["plano", "anio", "anio-mes", "anio-semana"],
+        default="anio",
+    )
     p.add_argument("--formato", choices=["csv", "json"], default="csv", help="formato del reporte")
     p.add_argument("--reporte", type=Path, help="ruta del reporte (por omisión reporte_fotos.csv/.json)")
-    p.add_argument("--orden", choices=["nombre", "reciente", "antiguo"], default="nombre",
-                   help="orden de proceso: por nombre, del año más reciente al más antiguo, o al revés")
-    p.add_argument("--sobrescribir", action="store_true",
-                   help="reemplaza los archivos que ya existan en el destino (no borra nada ni toca el origen)")
+    p.add_argument(
+        "--orden",
+        choices=["nombre", "reciente", "antiguo"],
+        default="nombre",
+        help="orden de proceso: por nombre, del año más reciente al más antiguo, o al revés",
+    )
+    p.add_argument(
+        "--sobrescribir",
+        action="store_true",
+        help="reemplaza los archivos que ya existan en el destino (no borra nada ni toca el origen)",
+    )
     p.add_argument("--hilos", type=int, default=4)
     p.add_argument("--dry-run", action="store_true", help="simula: no copia nada")
     p.add_argument("--sin-barra", action="store_true", help="no mostrar la barra de progreso")
     p.add_argument("--aviso", action="store_true", help="suena la campana de la terminal al terminar")
+    p.add_argument(
+        "--inventario-camaras",
+        action="store_true",
+        help="muestra qué cámaras aparecen en el origen y cuántas fotos hay por cada una; no copia nada",
+    )
     args = p.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     verificar_exiftool()
-    if not args.origen.is_dir():
+    if not args.origen or not args.origen.is_dir():
+        if args.inventario_camaras and args.origen and not args.origen.is_dir():
+            sys.exit(f"La carpeta de origen no existe: {args.origen}")
+        if not args.origen:
+            p.error("Debes indicar --origen")
         sys.exit(f"La carpeta de origen no existe: {args.origen}")
+
+    if args.inventario_camaras:
+        inventario = inventario_camaras(args.origen, args.hilos, barra=False)
+        for camara, cantidad in inventario:
+            print(f"{camara}\t{cantidad}")
+        return 0
+
+    if args.destino is None:
+        p.error("Debes indicar --destino salvo que uses --inventario-camaras")
 
     origen, destino = args.origen.resolve(), args.destino.resolve()
     if args.sobrescribir and (destino == origen or origen in destino.parents or destino in origen.parents):
-        sys.exit("Con --sobrescribir el destino no puede ser igual, ni estar dentro, ni contener al origen: "
-                 "podría reemplazar tus fotos originales.")
+        sys.exit(
+            "Con --sobrescribir el destino no puede ser igual, ni estar dentro, ni contener al origen: "
+            "podría reemplazar tus fotos originales."
+        )
     archivos = escanear(origen)
     log.info("%d imágenes encontradas en %s", len(archivos), origen)
 
     barra = not args.sin_barra
     metadatos = leer_metadatos(archivos, args.hilos, barra)
-    registros = planear(archivos, metadatos, destino, args.modelo, args.desde, args.hasta, args.estructura,
-                       args.orden, args.sobrescribir)
+    registros = planear(
+        archivos,
+        metadatos,
+        destino,
+        args.modelos,
+        args.desde,
+        args.hasta,
+        args.estructura,
+        args.orden,
+        args.sobrescribir,
+    )
     ejecutar(registros, args.dry_run, args.hilos, barra)
 
     ruta = args.reporte or Path(f"reporte_fotos.{args.formato}")
