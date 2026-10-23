@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Interfaz gráfica para separar_fotos.py.
 
-Permite elegir carpeta de origen, destino, filtro por modelo y fechas sin
-necesitar recordar todas las opciones de la línea de comandos.
+Permite elegir carpeta de origen, destino, filtro por modelo y fechas y además
+hacer un inventario de cámaras antes de organizar.
 """
 from __future__ import annotations
 
@@ -22,8 +22,8 @@ class VentanaPrincipal(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Separar fotos")
-        self.geometry("760x620")
-        self.minsize(700, 520)
+        self.geometry("820x700")
+        self.minsize(760, 620)
 
         self._crear_widgets()
 
@@ -31,54 +31,75 @@ class VentanaPrincipal(tk.Tk):
         frame = ttk.Frame(self, padding=14)
         frame.pack(fill="both", expand=True)
 
+        row = 0
         ttk.Label(frame, text="Carpeta origen", font=("Segoe UI", 10, "bold")).grid(
-            row=0, column=0, sticky="w", pady=(0, 4)
+            row=row, column=0, sticky="w", pady=(0, 4)
         )
+        row += 1
         self.origen_var = tk.StringVar()
         self.origen_entry = ttk.Entry(frame, textvariable=self.origen_var, width=80)
-        self.origen_entry.grid(row=1, column=0, sticky="ew", padx=(0, 8))
-        ttk.Button(frame, text="Explorar", command=self._elegir_origen).grid(row=1, column=1, sticky="ew")
-
-        ttk.Label(frame, text="Carpeta destino", font=("Segoe UI", 10, "bold")).grid(
-            row=2, column=0, sticky="w", pady=(12, 4)
+        self.origen_entry.grid(row=row, column=0, sticky="ew", padx=(0, 8))
+        ttk.Button(frame, text="Explorar", command=self._elegir_origen).grid(row=row, column=1, sticky="ew")
+        ttk.Button(frame, text="Inventariar cámaras", command=self._inventariar_camaras).grid(
+            row=row, column=2, sticky="ew", padx=(8, 0)
         )
+
+        row += 1
+        ttk.Label(frame, text="Carpeta destino", font=("Segoe UI", 10, "bold")).grid(
+            row=row, column=0, sticky="w", pady=(12, 4)
+        )
+        row += 1
         self.destino_var = tk.StringVar()
         self.destino_entry = ttk.Entry(frame, textvariable=self.destino_var, width=80)
-        self.destino_entry.grid(row=3, column=0, sticky="ew", padx=(0, 8))
-        ttk.Button(frame, text="Explorar", command=self._elegir_destino).grid(row=3, column=1, sticky="ew")
+        self.destino_entry.grid(row=row, column=0, sticky="ew", padx=(0, 8))
+        ttk.Button(frame, text="Explorar", command=self._elegir_destino).grid(row=row, column=1, sticky="ew")
 
-        opts = ttk.Frame(frame)
-        opts.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(14, 0))
-        opts.columnconfigure(0, weight=1)
-        opts.columnconfigure(1, weight=1)
-        opts.columnconfigure(2, weight=1)
-        opts.columnconfigure(3, weight=1)
+        row += 1
+        ttk.Label(frame, text="Cámaras detectadas (selección múltiple)", font=("Segoe UI", 10, "bold")).grid(
+            row=row, column=0, columnspan=3, sticky="w", pady=(14, 4)
+        )
+        row += 1
+        self.camaras_listbox = tk.Listbox(frame, selectmode="extended", height=8, exportselection=False)
+        self.camaras_listbox.grid(row=row, column=0, columnspan=3, sticky="nsew")
+        scroll = ttk.Scrollbar(frame, orient="vertical", command=self.camaras_listbox.yview)
+        scroll.grid(row=row, column=3, sticky="ns")
+        self.camaras_listbox.configure(yscrollcommand=scroll.set)
 
-        ttk.Label(opts, text="Modelo").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=(0, 6))
+        row += 1
+        filtros = ttk.Frame(frame)
+        filtros.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(14, 0))
+        filtros.columnconfigure(0, weight=1)
+        filtros.columnconfigure(1, weight=1)
+        filtros.columnconfigure(2, weight=1)
+        filtros.columnconfigure(3, weight=1)
+
+        ttk.Label(filtros, text="Modelo manual (opcional)").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=(0, 6))
         self.modelo_var = tk.StringVar()
-        ttk.Entry(opts, textvariable=self.modelo_var, width=18).grid(row=1, column=0, sticky="ew", padx=(0, 10))
+        ttk.Entry(filtros, textvariable=self.modelo_var, width=24).grid(row=1, column=0, sticky="ew", padx=(0, 10))
 
-        ttk.Label(opts, text="Desde").grid(row=0, column=1, sticky="w", padx=(0, 8), pady=(0, 6))
+        ttk.Label(filtros, text="Desde").grid(row=0, column=1, sticky="w", padx=(0, 8), pady=(0, 6))
         self.desde_var = tk.StringVar()
-        ttk.Entry(opts, textvariable=self.desde_var, width=14).grid(row=1, column=1, sticky="ew", padx=(0, 10))
+        ttk.Entry(filtros, textvariable=self.desde_var, width=14).grid(row=1, column=1, sticky="ew", padx=(0, 10))
 
-        ttk.Label(opts, text="Hasta").grid(row=0, column=2, sticky="w", padx=(0, 8), pady=(0, 6))
+        ttk.Label(filtros, text="Hasta").grid(row=0, column=2, sticky="w", padx=(0, 8), pady=(0, 6))
         self.hasta_var = tk.StringVar()
-        ttk.Entry(opts, textvariable=self.hasta_var, width=14).grid(row=1, column=2, sticky="ew", padx=(0, 10))
+        ttk.Entry(filtros, textvariable=self.hasta_var, width=14).grid(row=1, column=2, sticky="ew", padx=(0, 10))
 
-        ttk.Label(opts, text="Estructura").grid(row=0, column=3, sticky="w", pady=(0, 6))
+        ttk.Label(filtros, text="Estructura").grid(row=0, column=3, sticky="w", pady=(0, 6))
         self.estructura_var = tk.StringVar(value="anio")
         ttk.Combobox(
-            opts,
+            filtros,
             textvariable=self.estructura_var,
-            values=["anio", "anio-mes", "plano"],
+            values=["anio", "anio-mes", "anio-semana", "plano"],
             state="readonly",
-            width=16,
+            width=18,
         ).grid(row=1, column=3, sticky="ew")
 
+        row += 1
         ttk.Label(frame, text="Formato del reporte", font=("Segoe UI", 10, "bold")).grid(
-            row=5, column=0, sticky="w", pady=(16, 4)
+            row=row, column=0, sticky="w", pady=(16, 4)
         )
+        row += 1
         self.formato_var = tk.StringVar(value="csv")
         ttk.Combobox(
             frame,
@@ -86,33 +107,33 @@ class VentanaPrincipal(tk.Tk):
             values=["csv", "json"],
             state="readonly",
             width=12,
-        ).grid(row=6, column=0, sticky="w")
+        ).grid(row=row, column=0, sticky="w")
 
         ttk.Label(frame, text="Ruta del reporte (opcional)", font=("Segoe UI", 10, "bold")).grid(
-            row=5, column=1, sticky="w", pady=(16, 4)
+            row=row - 1, column=1, sticky="w", pady=(16, 4)
         )
         self.reporte_var = tk.StringVar()
         self.reporte_entry = ttk.Entry(frame, textvariable=self.reporte_var, width=38)
-        self.reporte_entry.grid(row=6, column=1, sticky="ew", padx=(0, 8))
-        ttk.Button(frame, text="Guardar", command=self._elegir_reporte).grid(row=6, column=2, sticky="ew")
+        self.reporte_entry.grid(row=row, column=1, sticky="ew", padx=(0, 8))
+        ttk.Button(frame, text="Guardar", command=self._elegir_reporte).grid(row=row, column=2, sticky="ew")
 
         self.dry_run_var = tk.BooleanVar(value=False)
         self.sobrescribir_var = tk.BooleanVar(value=False)
         self.aviso_var = tk.BooleanVar(value=False)
 
         checks = ttk.Frame(frame)
-        checks.grid(row=7, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        checks.grid(row=row + 1, column=0, columnspan=3, sticky="w", pady=(12, 0))
         ttk.Checkbutton(checks, text="Modo prueba (dry-run)", variable=self.dry_run_var).pack(side="left", padx=(0, 12))
         ttk.Checkbutton(checks, text="Sobrescribir archivos existentes", variable=self.sobrescribir_var).pack(side="left", padx=(0, 12))
         ttk.Checkbutton(checks, text="Avisar al terminar", variable=self.aviso_var).pack(side="left")
 
         self.boton = ttk.Button(frame, text="Organizar fotos", command=self._ejecutar)
-        self.boton.grid(row=8, column=0, columnspan=3, sticky="ew", pady=(18, 10))
+        self.boton.grid(row=row + 2, column=0, columnspan=3, sticky="ew", pady=(18, 10))
 
         self.output = tk.Text(frame, height=16, wrap="word")
-        self.output.grid(row=9, column=0, columnspan=3, sticky="nsew", pady=(4, 0))
+        self.output.grid(row=row + 3, column=0, columnspan=3, sticky="nsew", pady=(4, 0))
         frame.columnconfigure(0, weight=1)
-        frame.rowconfigure(9, weight=1)
+        frame.rowconfigure(row + 3, weight=1)
 
         self._cargar_valores_por_defecto()
 
@@ -139,6 +160,42 @@ class VentanaPrincipal(tk.Tk):
         )
         if archivo:
             self.reporte_var.set(archivo)
+
+    def _inventariar_camaras(self):
+        origen = Path(self.origen_var.get()).expanduser().resolve()
+        if not origen.exists() or not origen.is_dir():
+            messagebox.showerror("Error", "La carpeta de origen no existe o no es válida.")
+            return
+
+        self.output.delete("1.0", tk.END)
+        self.output.insert(tk.END, "Buscando cámaras en el disco...\n")
+        self.boton.config(state="disabled")
+        cmd = [sys.executable, str(SCRIPT), "--origen", str(origen), "--inventario-camaras"]
+        hilo = threading.Thread(target=self._ejecutar_inventario, args=(cmd,), daemon=True)
+        hilo.start()
+
+    def _ejecutar_inventario(self, cmd):
+        try:
+            resultado = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            salida = (resultado.stdout or "").strip()
+            self.camaras_listbox.delete(0, tk.END)
+            if not salida:
+                self.output.delete("1.0", tk.END)
+                self.output.insert(tk.END, "No se detectaron cámaras con fotos válidas en esa carpeta.\n")
+                return
+            lineas = [l for l in salida.splitlines() if l.strip()]
+            for linea in lineas:
+                partes = [p.strip() for p in linea.split("\t") if p.strip()]
+                if len(partes) >= 2:
+                    camara, cantidad = partes[0], partes[1]
+                    self.camaras_listbox.insert(tk.END, f"{camara} ({cantidad})")
+            self.output.delete("1.0", tk.END)
+            self.output.insert(tk.END, f"Se detectaron {len(lineas)} cámaras.\nSelecciona una o varias y pulsa 'Organizar fotos'.\n")
+        except Exception as exc:  # pragma: no cover - UI only
+            self.output.delete("1.0", tk.END)
+            self.output.insert(tk.END, f"Error al inventariar cámaras: {exc}\n")
+        finally:
+            self.boton.config(state="normal")
 
     def _ejecutar(self):
         origen = Path(self.origen_var.get()).expanduser().resolve()
@@ -175,9 +232,18 @@ class VentanaPrincipal(tk.Tk):
             self.formato_var.get(),
         ]
 
-        modelo = self.modelo_var.get().strip()
-        if modelo:
-            cmd.extend(["--modelo", modelo])
+        camaras = []
+        for idx in self.camaras_listbox.curselection():
+            item = self.camaras_listbox.get(idx)
+            if " (" in item:
+                camaras.append(item.rsplit(" (", 1)[0])
+        for camara in camaras:
+            cmd.extend(["--modelo", camara])
+
+        modelo_manual = self.modelo_var.get().strip()
+        if modelo_manual:
+            for parte in [p.strip() for p in modelo_manual.split(",") if p.strip()]:
+                cmd.extend(["--modelo", parte])
 
         desde = self.desde_var.get().strip()
         if desde:
