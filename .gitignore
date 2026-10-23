@@ -1,0 +1,5 @@
+__pycache__/
+reporte_fotos.*
+auditoria_*.json
+*.meta.json
+organizadas/
