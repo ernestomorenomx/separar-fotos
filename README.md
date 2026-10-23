@@ -2,7 +2,7 @@
 
 Organiza tus fotos por cámara y por fecha sin tocar los archivos originales.
 
-La idea es simple: en lugar de tener una carpeta llena de fotos mezcladas, el programa las revisa, identifica la cámara que las tomó y las copia en carpetas ordenadas por año, mes o semana.
+La idea es simple: en lugar de tener una carpeta llena de fotos mezcladas, el programa revisa tus imágenes, identifica la cámara que las tomó y las copia en carpetas ordenadas por año, mes o semana.
 
 Esto sirve si tienes un disco duro con miles de fotos de varias cámaras y quieres separarlas de forma clara, sin perder nada.
 
@@ -44,11 +44,22 @@ Además, debes tener instalado ExifTool:
 
 ## La forma más fácil de usar: interfaz gráfica
 
-Puedes abrir la aplicación con una sola orden:
+Abre la aplicación con:
 
 ```bash
 python app.py
 ```
+
+La interfaz te permite hacer esto en unos clics:
+
+1. Seleccionar la carpeta de origen
+2. Averiguar qué cámaras aparecen
+3. Elegir una o varias cámaras
+4. Filtrar por fecha
+5. Elegir la estructura de carpetas
+6. Seleccionar la carpeta destino
+7. Ejecutar la organización
+8. Revisar el reporte generado
 
 ### Flujo recomendado de la interfaz
 
@@ -197,8 +208,8 @@ El flujo sería:
 
 ## Consejos útiles
 
-- Antes de copiar todo, usa `--dry-run` o el modo prueba de la GUI.
-- Si solo quieres revisar una cámara concreta, usa `--modelo`.
+- Antes de copiar todo, usa el modo prueba.
+- Si solo quieres revisar una cámara concreta, usa `--modelo` o la selección del listado.
 - Si quieres una organización más clara, usa `anio-mes`.
 - Si quieres ver bloques de tiempo más pequeños, usa `anio-semana`.
 - Revisa el reporte si alguna foto no se pudo leer.
@@ -250,5 +261,3 @@ Este proyecto está pensado para que una persona normal pueda:
 - sin perder los originales
 
 Es una forma práctica de ordenar una galería grande sin complicaciones.
-
-
