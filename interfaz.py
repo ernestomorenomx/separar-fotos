@@ -24,8 +24,31 @@ class VentanaPrincipal(tk.Tk):
         self.title("Separar fotos")
         self.geometry("820x700")
         self.minsize(760, 620)
-
+        self._aplicar_estilo()
         self._crear_widgets()
+
+    def _aplicar_estilo(self):
+        self.configure(bg="#f3f5f9")
+        estilo = ttk.Style(self)
+        try:
+            estilo.theme_use("clam")
+        except tk.TclError:
+            pass
+
+        estilo.configure("TFrame", background="#f3f5f9")
+        estilo.configure("TLabel", background="#f3f5f9", foreground="#1f2937")
+        estilo.configure("TButton", padding=(12, 8), font=("Segoe UI", 10, "bold"), background="#e2e8f0")
+        estilo.map(
+            "TButton",
+            background=[("active", "#dbeafe"), ("pressed", "#bfdbfe")],
+            foreground=[("active", "#0f172a"), ("pressed", "#0f172a")],
+        )
+        estilo.configure("TEntry", fieldbackground="#ffffff", foreground="#0f172a", borderwidth=1)
+        estilo.configure("TCombobox", fieldbackground="#ffffff", foreground="#0f172a", background="#ffffff")
+        estilo.configure("TCheckbutton", background="#f3f5f9", foreground="#1f2937")
+        estilo.configure("TLabelframe", background="#f3f5f9")
+        estilo.configure("TLabelframe.Label", background="#f3f5f9", foreground="#111827")
+        estilo.configure("Horizontal.TScrollbar", background="#cbd5e1")
 
     def _crear_widgets(self):
         frame = ttk.Frame(self, padding=14)
@@ -61,6 +84,16 @@ class VentanaPrincipal(tk.Tk):
         row += 1
         self.camaras_listbox = tk.Listbox(frame, selectmode="extended", height=8, exportselection=False)
         self.camaras_listbox.grid(row=row, column=0, columnspan=3, sticky="nsew")
+        self.camaras_listbox.configure(
+            bg="#ffffff",
+            fg="#111827",
+            selectbackground="#4f46e5",
+            selectforeground="#ffffff",
+            highlightbackground="#cbd5e1",
+            highlightcolor="#4f46e5",
+            relief="solid",
+            borderwidth=1,
+        )
         scroll = ttk.Scrollbar(frame, orient="vertical", command=self.camaras_listbox.yview)
         scroll.grid(row=row, column=3, sticky="ns")
         self.camaras_listbox.configure(yscrollcommand=scroll.set)
@@ -131,6 +164,15 @@ class VentanaPrincipal(tk.Tk):
         self.boton.grid(row=row + 2, column=0, columnspan=3, sticky="ew", pady=(18, 10))
 
         self.output = tk.Text(frame, height=16, wrap="word")
+        self.output.configure(
+            bg="#ffffff",
+            fg="#111827",
+            insertbackground="#111827",
+            relief="solid",
+            borderwidth=1,
+            padx=8,
+            pady=8,
+        )
         self.output.grid(row=row + 3, column=0, columnspan=3, sticky="nsew", pady=(4, 0))
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(row + 3, weight=1)
